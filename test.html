@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>SES-IAT: Arm vs. Reich</title>
+  <script src="https://unpkg.com/jspsych@7.3.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-image-keyboard-response"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-categorize-html"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-categorize-image"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-call-function"></script>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; padding: 2em; }
+    .stimulus { font-size: 32px; }
+  </style>
+</head>
+<body>
+  <div id="jspsych-target"></div>
+
+  <script>
+    const armWords = ["Arbeitslosigkeit", "Betteln", "Gemeindebau", "Sozialhilfe"];
+    const reichWords = ["Luxus", "Privatschule", "Geld", "Villa"];
+
+    const armImages = ["images/arm1.png", "images/arm2.png"];
+    const reichImages = ["images/reich1.png", "images/reich2.png"];
+
+    const guteWorte = ["Freude", "Liebe", "Wertvoll", "Erfolg"];
+    const schlechteWorte = ["Leid", "Versagen", "Schmutz", "Schmerz"];
+
+    const zielStimuli = armWords.concat(reichWords).map(w => ({ stimulus: `<div class='stimulus'>${w}</div>`, category: armWords.includes(w) ? "Arm" : "Reich" }));
+    zielStimuli.push(...armImages.map(img => ({ stimulus: `<img src='${img}' height='150'>`, category: "Arm" })));
+    zielStimuli.push(...reichImages.map(img => ({ stimulus: `<img src='${img}' height='150'>`, category: "Reich" })));
+
+    const attributStimuli = guteWorte.concat(schlechteWorte).map(w => ({ stimulus: `<div class='stimulus'>${w}</div>`, category: guteWorte.includes(w) ? "Gut" : "Schlecht" }));
+
+    const categorizationTrial = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: jsPsych.timelineVariable('stimulus'),
+      choices: ['e', 'i'],
+      data: {
+        category: jsPsych.timelineVariable('category')
+      },
+      on_finish: function(data){
+        data.rt = data.rt;
+        data.key_press = data.response;
+      }
+    };
+
+    const timeline = [];
+
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: "<h2>SES-IAT: Arm vs. Reich</h2><p>Drücke eine Taste, um zu starten.</p>"
+    });
+
+    timeline.push({
+      timeline: [categorizationTrial],
+      timeline_variables: zielStimuli,
+      randomize_order: true,
+      repetitions: 2
+    });
+
+    timeline.push({
+      timeline: [categorizationTrial],
+      timeline_variables: attributStimuli,
+      randomize_order: true,
+      repetitions: 2
+    });
+
+    timeline.push({
+      type: jsPsychCallFunction,
+      func: function() {
+        const allData = jsPsych.data.get();
+        const armTrials = allData.filter({category: "Arm"}).select("rt").values;
+        const reichTrials = allData.filter({category: "Reich"}).select("rt").values;
+
+        const avg = arr => arr.reduce((a,b) => a + b, 0) / arr.length;
+        const avgArm = avg(armTrials);
+        const avgReich = avg(reichTrials);
+
+        let feedback = "";
+        const diff = avgArm - avgReich;
+        if(Math.abs(diff) < 50){
+          feedback = "Keine klare Tendenz erkennbar.";
+        } else if(diff > 0){
+          feedback = "Leichte Tendenz: Positivere Assoziationen mit 'Reich'.";
+        } else {
+          feedback = "Leichte Tendenz: Positivere Assoziationen mit 'Arm'.";
+        }
+
+        jsPsych.data.addProperties({
+          durchschnitt_arm: avgArm,
+          durchschnitt_reich: avgReich,
+          differenz: diff,
+          feedback: feedback
+        });
+      }
+    });
+
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: function() {
+        const data = jsPsych.data.get().values()[0];
+        return `<h3>Vielen Dank!</h3>
+          <p>${data.feedback}</p>
+          <p><button onclick="downloadCSV()">CSV herunterladen</button></p>`;
+      }
+    });
+
+    function downloadCSV() {
+      const csv = jsPsych.data.get().csv();
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'iat_daten.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    jsPsych.run(timeline);
+  </script>
+</body>
+</html>
