@@ -1,0 +1,117 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>SES-IAT: Klassisch mit geteiltem Übungsblock</title>
+  <script src="https://unpkg.com/jspsych@7.3.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-call-function"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-preload"></script>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; padding: 2em; }
+    .stimulus { font-size: 32px; }
+    .categories { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 2em; }
+  </style>
+</head>
+<body>
+  <div id="jspsych-target"></div>
+  <script>
+    const jsPsych = initJsPsych();
+
+    const armWords = ["Arbeitslosigkeit", "Betteln", "Gemeindebau", "Sozialhilfe"];
+    const reichWords = ["Luxus", "Privatschule", "Geld", "Villa"];
+    const guteWorte = ["Freude", "Liebe", "Wertvoll", "Erfolg"];
+    const schlechteWorte = ["Leid", "Versagen", "Schmutz", "Schmerz"];
+
+    const preload = { type: jsPsychPreload, images: [] };
+    const timeline = [preload];
+
+    const instructions = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `<h2>SES-IAT</h2><p>Ordnen Sie Begriffe mit E (links) oder I (rechts) den Kategorien zu.<br>Bitte schnell und korrekt reagieren.</p><p>Drücken Sie eine Taste, um zu starten.</p>`
+    };
+    timeline.push(instructions);
+
+    function makeStimuli(words, category) {
+      return words.map(w => ({ stimulus: w, category: category }));
+    }
+
+    function sampleStimuli(blockName, stimuli) {
+      return jsPsych.randomization.sampleWithoutReplacement(stimuli, stimuli.length).map(s => ({ ...s, block: blockName }));
+    }
+
+    function buildTrial(leftCats, rightCats) {
+      return {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: function() {
+          const stim = jsPsych.timelineVariable('stimulus', true);
+          return `<div class="categories"><div>${leftCats.join(" / ")}</div><div>${rightCats.join(" / ")}</div></div><div class="stimulus">${stim}</div>`;
+        },
+        choices: ['e', 'i'],
+        data: {
+          category: function() { return jsPsych.timelineVariable('category', true); },
+          block: jsPsych.timelineVariable('block')
+        },
+        post_trial_gap: 250,
+        on_finish: function(data) {
+          const correct = (data.category === "Arm" || data.category === "Gut") ? data.response === 'e' : data.response === 'i';
+          data.correct = correct;
+        }
+      };
+    }
+
+    const practice1 = sampleStimuli("Übung: Arm vs. Reich", makeStimuli(armWords, "Arm").concat(makeStimuli(reichWords, "Reich")));
+    timeline.push({ timeline: [buildTrial(["Arm"], ["Reich"])], timeline_variables: practice1 });
+
+    const practice2 = sampleStimuli("Übung: Gut vs. Schlecht", makeStimuli(guteWorte, "Gut").concat(makeStimuli(schlechteWorte, "Schlecht")));
+    timeline.push({ timeline: [buildTrial(["Gut"], ["Schlecht"])], timeline_variables: practice2 });
+
+    timeline.push({ type: jsPsychHtmlKeyboardResponse, stimulus: "<p>Block 1: Arm + Gut (E) vs. Reich + Schlecht (I)</p><p>Drücke eine Taste.</p>" });
+    const block1Stimuli = sampleStimuli("Testblock 1", makeStimuli(armWords, "Arm").concat(makeStimuli(guteWorte, "Gut"), makeStimuli(reichWords, "Reich"), makeStimuli(schlechteWorte, "Schlecht")));
+    timeline.push({ timeline: [buildTrial(["Arm", "Gut"], ["Reich", "Schlecht"])], timeline_variables: block1Stimuli });
+
+    timeline.push({ type: jsPsychHtmlKeyboardResponse, stimulus: "<p>Neuer Übungsblock 3.1: Arm (E) vs. Reich (I)</p><p>Drücke eine Taste.</p>" });
+    const practice3a = sampleStimuli("Übung 3.1", makeStimuli(armWords, "Arm").concat(makeStimuli(reichWords, "Reich")));
+    timeline.push({ timeline: [buildTrial(["Arm"], ["Reich"])], timeline_variables: practice3a });
+
+    timeline.push({ type: jsPsychHtmlKeyboardResponse, stimulus: "<p>Neuer Übungsblock 3.2: Schlecht (E) vs. Gut (I)</p><p>Drücke eine Taste.</p>" });
+    const practice3b = sampleStimuli("Übung 3.2", makeStimuli(schlechteWorte, "Schlecht").concat(makeStimuli(guteWorte, "Gut")));
+    timeline.push({ timeline: [buildTrial(["Schlecht"], ["Gut"])], timeline_variables: practice3b });
+
+    timeline.push({ type: jsPsychHtmlKeyboardResponse, stimulus: "<p>Block 2: Arm + Schlecht (E) vs. Reich + Gut (I)</p><p>Drücke eine Taste.</p>" });
+    const block2Stimuli = sampleStimuli("Testblock 2", makeStimuli(armWords, "Arm").concat(makeStimuli(schlechteWorte, "Schlecht"), makeStimuli(reichWords, "Reich"), makeStimuli(guteWorte, "Gut")));
+    timeline.push({ timeline: [buildTrial(["Arm", "Schlecht"], ["Reich", "Gut"])], timeline_variables: block2Stimuli });
+
+    timeline.push({
+      type: jsPsychCallFunction,
+      func: function() {
+        const data = jsPsych.data.get().filterCustom(d => d.block && d.block.includes("Testblock"));
+        const block1 = data.filter({ block: "Testblock 1" }).select("rt").values;
+        const block2 = data.filter({ block: "Testblock 2" }).select("rt").values;
+        const avg = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+        const avg1 = avg(block1);
+        const avg2 = avg(block2);
+        const dScore = (avg1 - avg2) / Math.max(jsPsych.utils.standardDeviation(block1.concat(block2)), 1);
+        let interpretation = "Keine eindeutige Tendenz.";
+        if (Math.abs(dScore) > 0.65) {
+          interpretation = dScore > 0 ? "Starke Tendenz: Reich + Gut bevorzugt." : "Starke Tendenz: Arm + Gut bevorzugt.";
+        } else if (Math.abs(dScore) > 0.35) {
+          interpretation = dScore > 0 ? "Leichte Tendenz: Reich + Gut bevorzugt." : "Leichte Tendenz: Arm + Gut bevorzugt.";
+        }
+        jsPsych.data.addProperties({ d_score: dScore, interpretation: interpretation });
+      }
+    });
+
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: function() {
+        const data = jsPsych.data.get().values()[0];
+        return `<h3>Ergebnis</h3><p>${data.interpretation}</p><p>D-Score: ${data.d_score.toFixed(3)}</p>`;
+      }
+    });
+
+    jsPsych.run(timeline);
+  </script>
+</body>
+</html>
