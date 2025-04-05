@@ -1,0 +1,137 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SES-IAT (mit Bildern und Einführung)</title>
+  <script src="https://unpkg.com/jspsych@7.3.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: auto;
+      padding: 2em;
+      text-align: center;
+    }
+    .stimulus { font-size: 32px; margin-top: 1em; }
+    .categories {
+      display: flex;
+      justify-content: space-between;
+      font-weight: bold;
+      font-size: 18px;
+      margin-bottom: 1em;
+    }
+    img {
+      max-height: 200px;
+    }
+  </style>
+</head>
+<body>
+  <div id="jspsych-target"></div>
+  <script>
+    const jsPsych = initJsPsych();
+
+    const arm = ["images/arm1.png", "images/arm2.png"];
+    const reich = ["images/reich1.png", "images/reich2.png"];
+    const gut = ["Freude", "Liebe", "Wertvoll", "Erfolg"];
+    const schlecht = ["Leid", "Versagen", "Schmutz", "Schmerz"];
+
+    const timeline = [];
+
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <h2>Willkommen zum SES-IAT</h2>
+        <p>Dieser Test misst unbewusste Assoziationen mit sozio-ökonomischem Status.</p>
+        <p>Sie sehen Begriffe oder Bilder und ordnen diese mit <strong>E</strong> (links) oder <strong>I</strong> (rechts) bestimmten Kategorien zu.</p>
+        <p>Bitte reagieren Sie <strong>schnell</strong> und <strong>intuitiv</strong>.</p>
+        <p>Drücken Sie eine Taste, um zu starten.</p>`
+    });
+
+    function buildTrial(leftCat, rightCat) {
+      return {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: function() {
+          const stim = jsPsych.timelineVariable('stimulus', true);
+          const isImage = stim.includes(".jpg") || stim.includes(".png") || stim.includes(".jpeg");
+          const content = isImage ? `<img src="${stim}">` : stim;
+          return `<div class="categories"><div>${leftCat}</div><div>${rightCat}</div></div><div class="stimulus">${content}</div>`;
+        },
+        choices: ['e', 'i'],
+        trial_ends_after_response: true,
+        post_trial_gap: 0
+      };
+    }
+
+    function makeTrials(words, category) {
+      return words.map(w => ({ stimulus: w, category: category }));
+    }
+
+    function instruction(text) {
+      return {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: `<p>${text}</p><p>Drücke eine Taste, um fortzufahren.</p>`,
+        post_trial_gap: 0
+      };
+    }
+
+    function dScoreFromBlocks(b1, b2) {
+      const mean = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
+      const std = arr => {
+        const m = mean(arr);
+        return Math.sqrt(arr.reduce((a, b) => a + Math.pow(b - m, 2), 0) / arr.length);
+      };
+      const avg1 = mean(b1);
+      const avg2 = mean(b2);
+      const pooledSD = std(b1.concat(b2)) || 1;
+      return (avg1 - avg2) / pooledSD;
+    }
+
+    const blockDefs = [
+      { name: "Übung 1", trials: jsPsych.randomization.shuffle(makeTrials(arm, "Arm").concat(makeTrials(reich, "Reich"))), left: "Arm", right: "Reich" },
+      { name: "Übung 2", trials: jsPsych.randomization.shuffle(makeTrials(gut, "Gut").concat(makeTrials(schlecht, "Schlecht"))), left: "Gut", right: "Schlecht" },
+      { name: "Testblock 1", trials: jsPsych.randomization.shuffle(makeTrials(arm, "Arm").concat(makeTrials(gut, "Gut"), makeTrials(reich, "Reich"), makeTrials(schlecht, "Schlecht"))), left: "Arm / Gut", right: "Reich / Schlecht" },
+      { name: "Übung 3.1", trials: jsPsych.randomization.shuffle(makeTrials(arm, "Arm").concat(makeTrials(reich, "Reich"))), left: "Arm", right: "Reich" },
+      { name: "Übung 3.2", trials: jsPsych.randomization.shuffle(makeTrials(schlecht, "Schlecht").concat(makeTrials(gut, "Gut"))), left: "Schlecht", right: "Gut" },
+      { name: "Testblock 2", trials: jsPsych.randomization.shuffle(makeTrials(arm, "Arm").concat(makeTrials(schlecht, "Schlecht"), makeTrials(reich, "Reich"), makeTrials(gut, "Gut"))), left: "Arm / Schlecht", right: "Reich / Gut" }
+    ];
+
+    const rt_testblock_1 = [];
+    const rt_testblock_2 = [];
+
+    for (const block of blockDefs) {
+      timeline.push(instruction(`${block.name}<br><br>
+      In diesem Block ordnen Sie Stimuli den Kategorien zu.<br>
+      <strong>E</strong> entspricht der linken Kategorie: "${block.left}"<br>
+      <strong>I</strong> entspricht der rechten Kategorie: "${block.right}"<br><br>
+      Versuchen Sie, möglichst schnell und fehlerfrei zu reagieren.`));
+      timeline.push({
+        timeline: [buildTrial(block.left, block.right)],
+        timeline_variables: block.trials,
+        on_finish: function(data) {
+          if (block.name.includes("Testblock 1")) rt_testblock_1.push(data.rt);
+          if (block.name.includes("Testblock 2")) rt_testblock_2.push(data.rt);
+        }
+      });
+    }
+
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: function() {
+        const d = dScoreFromBlocks(rt_testblock_1, rt_testblock_2);
+        let interpretation = "Keine eindeutige Tendenz.";
+        if (Math.abs(d) > 0.65) {
+          interpretation = d > 0 ? "Starke Tendenz: Reich + Gut bevorzugt." : "Starke Tendenz: Arm + Gut bevorzugt.";
+        } else if (Math.abs(d) > 0.35) {
+          interpretation = d > 0 ? "Leichte Tendenz: Reich + Gut bevorzugt." : "Leichte Tendenz: Arm + Gut bevorzugt.";
+        }
+        return `<h3>Auswertung</h3><p>${interpretation}</p><p><strong>D-Score:</strong> ${d.toFixed(3)}</p><p>Der Test ist abgeschlossen.</p>`;
+      }
+    });
+
+    jsPsych.run(timeline);
+  </script>
+</body>
+</html>
