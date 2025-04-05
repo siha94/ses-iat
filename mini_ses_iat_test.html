@@ -1,0 +1,74 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mini SES-IAT Test</title>
+  <script src="https://unpkg.com/jspsych@7.3.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 700px;
+      margin: auto;
+      padding: 2em;
+      text-align: center;
+    }
+    .stimulus { font-size: 32px; margin-top: 1em; }
+    .categories {
+      display: flex;
+      justify-content: space-between;
+      font-weight: bold;
+      font-size: 18px;
+      margin-bottom: 1em;
+    }
+  </style>
+</head>
+<body>
+  <div id="jspsych-target"></div>
+  <script>
+    const jsPsych = initJsPsych();
+
+    const timeline = [];
+
+    // Kurze Einführung
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: "<p>Willkommen zum Mini-Test.</p><p>Drücke eine Taste, um zu starten.</p>"
+    });
+
+    // Zwei einfache Trials
+    const trials = [
+      { stimulus: "Betteln", category: "Arm" },
+      { stimulus: "Luxus", category: "Reich" }
+    ];
+
+    function buildTrial(leftCat, rightCat) {
+      return {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: function() {
+          const stim = jsPsych.timelineVariable('stimulus', true);
+          return `<div class="categories"><div>${leftCat}</div><div>${rightCat}</div></div><div class="stimulus">${stim}</div>`;
+        },
+        choices: ['e', 'i'],
+        trial_ends_after_response: true,
+        post_trial_gap: 0
+      };
+    }
+
+    timeline.push({
+      timeline: [buildTrial("Arm", "Reich")],
+      timeline_variables: trials
+    });
+
+    // Fester Abschlussbildschirm
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: "<h3>Test abgeschlossen!</h3><p>Vielen Dank für Ihre Teilnahme.</p><p>Drücke eine Taste zum Beenden.</p>"
+    });
+
+    jsPsych.run(timeline);
+  </script>
+</body>
+</html>
