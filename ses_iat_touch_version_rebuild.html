@@ -1,0 +1,137 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SES-IAT (Touch-Version)</title>
+  <script src="https://unpkg.com/jspsych@7.3.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-button-response"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: auto;
+      padding: 2em;
+      text-align: center;
+    }
+    .stimulus { font-size: 28px; margin: 2em 0; }
+    .jspsych-btn {
+      width: 45%;
+      margin: 10px;
+      padding: 1em;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div id="jspsych-target"></div>
+  <script>
+    const jsPsych = initJsPsych();
+
+    const arm = ["Sozialhilfeempfänger", "Arbeitslose Person", "Obdachloser", "Alleinerziehende Mutter", "Person im Gemeindebau", "Geringverdiener", "AMS-Kunde"];
+    const reich = ["Investor", "Manager", "Erbe", "Anzugträger", "Luxusurlauber", "Privatversichert", "Millionär"];
+    const intelligent = ["Klug", "Erfinderisch", "Logisch", "Hochbegabt", "Analytisch", "Bildung", "Lösung"];
+    const dumm = ["Ahnungslos", "Fehler", "Ungebildet", "Naiv", "Langsam im Denken", "Verwirrt", "Versagen"];
+
+    const timeline = [];
+
+    timeline.push({
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <h2>Willkommen zum SES-IAT</h2>
+        <p>In diesem Test erforschen wir, ob unbewusste Assoziationen zwischen sozialen Gruppen (z. B. "arme Menschen", "reiche Menschen") und kognitiven Eigenschaften (z. B. "intelligent", "dumm") bestehen.</p>
+        <p>Sie sehen Wörter und wählen durch Tippen auf den linken oder rechten Button die passende Kategorie aus.</p>
+        <p>Bitte reagieren Sie schnell und intuitiv – es gibt keine richtigen oder falschen Antworten.</p>`,
+      choices: ["Starten"]
+    });
+
+    function buildTouchTrial(leftCat, rightCat) {
+      return {
+        type: jsPsychHtmlButtonResponse,
+        stimulus: function() {
+          return `<div class="stimulus">${jsPsych.timelineVariable('stimulus', true)}</div>`;
+        },
+        choices: [leftCat, rightCat],
+        margin_vertical: "30px",
+        margin_horizontal: "30px",
+        post_trial_gap: 0
+      };
+    }
+
+    function makeTrials(words, category) {
+      return words.map(w => ({ stimulus: w, category }));
+    }
+
+    function instruction(text) {
+      return {
+        type: jsPsychHtmlButtonResponse,
+        stimulus: `<p>${text}</p>`,
+        choices: ["Weiter"],
+        post_trial_gap: 0
+      };
+    }
+
+    function dScoreFromBlocks(b1, b2) {
+      const mean = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
+      const std = arr => {
+        const m = mean(arr);
+        return Math.sqrt(arr.reduce((a, b) => a + Math.pow(b - m, 2), 0) / arr.length);
+      };
+      const avg1 = mean(b1);
+      const avg2 = mean(b2);
+      const pooledSD = std(b1.concat(b2)) || 1;
+      return (avg1 - avg2) / pooledSD;
+    }
+
+    const blockDefs = [
+      { name: "Übung 1", trials: jsPsych.randomization.shuffle(makeTrials(arm, "Arm").concat(makeTrials(reich, "Reich"))), left: "Arme Menschen", right: "Reiche Menschen" },
+      { name: "Übung 2", trials: jsPsych.randomization.shuffle(makeTrials(intelligent, "Intelligent").concat(makeTrials(dumm, "Dumm"))), left: "Intelligent", right: "Dumm" },
+      { name: "Testblock 1", trials: jsPsych.randomization.shuffle(makeTrials(arm, "Arm").concat(makeTrials(intelligent, "Intelligent"), makeTrials(reich, "Reich"), makeTrials(dumm, "Dumm"))), left: "Arme Menschen / Intelligent", right: "Reiche Menschen / Dumm" },
+      { name: "Übung 3.1", trials: jsPsych.randomization.shuffle(makeTrials(arm, "Arm").concat(makeTrials(reich, "Reich"))), left: "Arme Menschen", right: "Reiche Menschen" },
+      { name: "Übung 3.2", trials: jsPsych.randomization.shuffle(makeTrials(dumm, "Dumm").concat(makeTrials(intelligent, "Intelligent"))), left: "Dumm", right: "Intelligent" },
+      { name: "Testblock 2", trials: jsPsych.randomization.shuffle(makeTrials(arm, "Arm").concat(makeTrials(dumm, "Dumm"), makeTrials(reich, "Reich"), makeTrials(intelligent, "Intelligent"))), left: "Arme Menschen / Dumm", right: "Reiche Menschen / Intelligent" }
+    ];
+
+    const rt_testblock_1 = [];
+    const rt_testblock_2 = [];
+
+    for (const block of blockDefs) {
+      timeline.push(instruction(`🟦 <strong>${block.name}</strong><br><br>
+      In diesem Block ordnen Sie Begriffe den Kategorien zu.<br>
+      Tippen Sie links für "${block.left}" oder rechts für "${block.right}".<br><br>
+      Bitte so schnell und genau wie möglich reagieren.`));
+      timeline.push({
+        timeline: [buildTouchTrial(block.left, block.right)],
+        timeline_variables: block.trials,
+        on_finish: function(data) {
+          if (block.name.includes("Testblock 1")) rt_testblock_1.push(data.rt);
+          if (block.name.includes("Testblock 2")) rt_testblock_2.push(data.rt);
+        }
+      });
+    }
+
+    timeline.push({
+      type: jsPsychHtmlButtonResponse,
+      stimulus: function() {
+        const d = dScoreFromBlocks(rt_testblock_1, rt_testblock_2);
+        let interpretation = "Keine eindeutige Assoziation messbar.";
+        let explanation = "Es zeigt sich kein deutlicher Zusammenhang zwischen sozioökonomischem Status und der Zuschreibung von Intelligenz oder Dummheit.";
+        if (Math.abs(d) > 0.65) {
+          interpretation = d > 0 ? "Starke Tendenz: Reiche Menschen werden mit Intelligenz assoziiert." : "Starke Tendenz: Arme Menschen werden mit Intelligenz assoziiert.";
+          explanation = d > 0 ? "Die Ergebnisse deuten auf ein implizites Stereotyp hin, das Reichtum mit Intelligenz verbindet." :
+                                "Die Ergebnisse deuten auf ein implizites Stereotyp hin, das Armut mit Intelligenz verbindet.";
+        } else if (Math.abs(d) > 0.35) {
+          interpretation = d > 0 ? "Leichte Tendenz: Reiche Menschen werden eher mit Intelligenz assoziiert." : "Leichte Tendenz: Arme Menschen werden eher mit Intelligenz assoziiert.";
+          explanation = d > 0 ? "Die Daten zeigen eine schwache Präferenz für die Assoziation von Reichtum mit Intelligenz." :
+                                "Die Daten zeigen eine schwache Präferenz für die Assoziation von Armut mit Intelligenz.";
+        }
+        return `<h3>Auswertung</h3><p>${interpretation}</p><p><strong>D-Score:</strong> ${d.toFixed(3)}</p><p>${explanation}</p><p>Der Test ist abgeschlossen.</p>`;
+      },
+      choices: ["Beenden"]
+    });
+
+    jsPsych.run(timeline);
+  </script>
+</body>
+</html>
