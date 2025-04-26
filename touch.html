@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>SES-IAT (Touch-Version mit Fehlerfarbfeedback)</title>
+  <title>SES-IAT (Touch-Version mit Hinweisen)</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -101,24 +101,32 @@ function showInstruction() {
   }
 
   const blockInfo = blocks[block];
-  let instructionText = `
-    <h2>${blockInfo.name}</h2>
-    <p>Ordnen Sie die Begriffe den richtigen Kategorien zu:</p>
-    <p><strong>Links:</strong> ${blockInfo.left}</p>
-    <p><strong>Rechts:</strong> ${blockInfo.right}</p>
-    <button class="choice-button" id="continue-button">Weiter</button>
-  `;
+  let extraHint = "";
 
-  if (blockInfo.name === "Hinweis") {
-    instructionText = `
+  if (blockInfo.type === "practice") {
+    extraHint = "<p><em>Hinweis: Dies ist ein Übungsabschnitt. Ihre Reaktionen werden geübt und nicht ausgewertet.</em></p>";
+  } else if (blockInfo.type === "test1") {
+    extraHint = "<p><strong>Achtung:</strong> Nun startet der eigentliche Test. Ihre Reaktionsgeschwindigkeit wird gemessen und ausgewertet.</p>";
+  } else if (blockInfo.name === "Hinweis") {
+    document.getElementById('instruction-container').innerHTML = `
       <h2>Hinweis</h2>
       <p>Die Seitenzuordnung der Kategorien wird nun geändert!</p>
       <p>Bitte achten Sie besonders darauf, auf welcher Seite welche Kategorie steht.</p>
       <button class="choice-button" id="continue-button">Weiter</button>
     `;
+    document.getElementById('instruction-container').style.display = "block";
+    document.getElementById('continue-button').addEventListener('click', startBlock);
+    return;
   }
 
-  document.getElementById('instruction-container').innerHTML = instructionText;
+  document.getElementById('instruction-container').innerHTML = `
+    <h2>${blockInfo.name}</h2>
+    ${extraHint}
+    <p>Ordnen Sie die Begriffe den richtigen Kategorien zu:</p>
+    <p><strong>Links:</strong> ${blockInfo.left}</p>
+    <p><strong>Rechts:</strong> ${blockInfo.right}</p>
+    <button class="choice-button" id="continue-button">Weiter</button>
+  `;
   document.getElementById('instruction-container').style.display = "block";
   document.getElementById('continue-button').addEventListener('click', startBlock);
 }
