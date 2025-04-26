@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>SES-IAT (Touch-Version mit Reaktionszeitmessung)</title>
+  <title>SES-IAT (Touch-Version mit Fehlerfarbfeedback)</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -12,6 +12,7 @@
       padding: 1em;
       margin: 0;
       background-color: #f5f5f5;
+      transition: background-color 0.3s ease;
     }
     #stimulus-container {
       margin-top: 2em;
@@ -48,7 +49,7 @@
   <h2>Willkommen zum SES-IAT</h2>
   <p>Dieser Test untersucht unbewusste Assoziationen zwischen sozioökonomischem Status (arm/reich) und kognitiven Eigenschaften (intelligent/dumm).</p>
   <p>Sie sehen Begriffe und wählen per Tippen auf den linken oder rechten Button die passende Kategorie aus.</p>
-  <p>Bitte reagieren Sie schnell und intuitiv – es gibt keine richtigen oder falschen Antworten.</p>
+  <p>Bitte reagieren Sie schnell und intuitiv – Fehler verlängern die Reaktionszeit um 600ms und lösen ein kurzes rotes Feedback aus!</p>
   <button class="choice-button" id="start-button">Test starten</button>
 </div>
 
@@ -72,14 +73,18 @@ let startTime = 0;
 let responses = [];
 
 const blocks = [
-  { name: "Übung 1", left: "Arme Menschen", right: "Reiche Menschen", items: shuffle(arm.concat(reich)), type: "practice" },
-  { name: "Übung 2", left: "Intelligent", right: "Dumm", items: shuffle(intelligent.concat(dumm)), type: "practice" },
-  { name: "Testblock 1", left: "Arme Menschen / Intelligent", right: "Reiche Menschen / Dumm", items: shuffle(arm.concat(intelligent, reich, dumm)), type: "test1" },
+  { name: "Übung 1", left: "Arme Menschen", right: "Reiche Menschen", items: buildItems(arm, "left").concat(buildItems(reich, "right")), type: "practice" },
+  { name: "Übung 2", left: "Intelligent", right: "Dumm", items: buildItems(intelligent, "left").concat(buildItems(dumm, "right")), type: "practice" },
+  { name: "Testblock 1", left: "Arme Menschen / Intelligent", right: "Reiche Menschen / Dumm", items: buildItems(arm, "left").concat(buildItems(intelligent, "left"), buildItems(reich, "right"), buildItems(dumm, "right")), type: "test1" },
   { name: "Hinweis", left: "", right: "", items: [], type: "info" },
-  { name: "Übung 3.1", left: "Arme Menschen", right: "Reiche Menschen", items: shuffle(arm.concat(reich)), type: "practice" },
-  { name: "Übung 3.2", left: "Dumm", right: "Intelligent", items: shuffle(dumm.concat(intelligent)), type: "practice" },
-  { name: "Testblock 2", left: "Arme Menschen / Dumm", right: "Reiche Menschen / Intelligent", items: shuffle(arm.concat(dumm, reich, intelligent)), type: "test2" }
+  { name: "Übung 3.1", left: "Arme Menschen", right: "Reiche Menschen", items: buildItems(arm, "left").concat(buildItems(reich, "right")), type: "practice" },
+  { name: "Übung 3.2", left: "Dumm", right: "Intelligent", items: buildItems(dumm, "left").concat(buildItems(intelligent, "right")), type: "practice" },
+  { name: "Testblock 2", left: "Arme Menschen / Dumm", right: "Reiche Menschen / Intelligent", items: buildItems(arm, "left").concat(buildItems(dumm, "left"), buildItems(reich, "right"), buildItems(intelligent, "right")), type: "test2" }
 ];
+
+function buildItems(words, correctSide) {
+  return words.map(word => ({ stimulus: word, correct: correctSide }));
+}
 
 document.getElementById('start-button').addEventListener('click', () => {
   document.getElementById('instruction-container').style.display = "none";
@@ -130,7 +135,7 @@ function startBlock() {
   document.getElementById('stimulus-container').style.display = "block";
   document.getElementById('button-container').style.display = "flex";
   currentStimulus = 0;
-  allStimuli = blocks[block].items;
+  allStimuli = shuffle(blocks[block].items);
   document.getElementById('left-button').textContent = blocks[block].left;
   document.getElementById('right-button').textContent = blocks[block].right;
   showStimulus();
@@ -142,15 +147,26 @@ function showStimulus() {
     showInstruction();
     return;
   }
-  document.getElementById('stimulus-container').innerHTML = allStimuli[currentStimulus];
+  document.getElementById('stimulus-container').innerHTML = allStimuli[currentStimulus].stimulus;
   startTime = Date.now();
 }
 
 function recordResponse(side) {
-  const rt = Date.now() - startTime;
+  const rtRaw = Date.now() - startTime;
+  let correct = side === allStimuli[currentStimulus].correct;
+  let rt = correct ? rtRaw : rtRaw + 600;
+
+  if (!correct) {
+    document.body.style.backgroundColor = "#f44336"; // rot
+    setTimeout(() => {
+      document.body.style.backgroundColor = "#f5f5f5"; // normal
+    }, 300);
+  }
+
   responses.push({
-    stimulus: allStimuli[currentStimulus],
+    stimulus: allStimuli[currentStimulus].stimulus,
     response: side,
+    correct: correct,
     rt: rt,
     blockType: blocks[block].type
   });
