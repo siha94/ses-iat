@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>SES-IAT (Touch-Version final)</title>
+  <title>SES-IAT (Touch-Version mit Reaktionszeitmessung)</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -68,16 +68,17 @@ const dumm = ["Ahnungslos", "Fehler", "Ungebildet", "Naiv", "Langsam im Denken",
 let allStimuli = [];
 let currentStimulus = 0;
 let block = 0;
+let startTime = 0;
 let responses = [];
 
 const blocks = [
-  { name: "Übung 1", left: "Arme Menschen", right: "Reiche Menschen", items: shuffle(arm.concat(reich)) },
-  { name: "Übung 2", left: "Intelligent", right: "Dumm", items: shuffle(intelligent.concat(dumm)) },
-  { name: "Testblock 1", left: "Arme Menschen / Intelligent", right: "Reiche Menschen / Dumm", items: shuffle(arm.concat(intelligent, reich, dumm)) },
-  { name: "Hinweis", left: "", right: "", items: [] },
-  { name: "Übung 3.1", left: "Arme Menschen", right: "Reiche Menschen", items: shuffle(arm.concat(reich)) },
-  { name: "Übung 3.2", left: "Dumm", right: "Intelligent", items: shuffle(dumm.concat(intelligent)) },
-  { name: "Testblock 2", left: "Arme Menschen / Dumm", right: "Reiche Menschen / Intelligent", items: shuffle(arm.concat(dumm, reich, intelligent)) }
+  { name: "Übung 1", left: "Arme Menschen", right: "Reiche Menschen", items: shuffle(arm.concat(reich)), type: "practice" },
+  { name: "Übung 2", left: "Intelligent", right: "Dumm", items: shuffle(intelligent.concat(dumm)), type: "practice" },
+  { name: "Testblock 1", left: "Arme Menschen / Intelligent", right: "Reiche Menschen / Dumm", items: shuffle(arm.concat(intelligent, reich, dumm)), type: "test1" },
+  { name: "Hinweis", left: "", right: "", items: [], type: "info" },
+  { name: "Übung 3.1", left: "Arme Menschen", right: "Reiche Menschen", items: shuffle(arm.concat(reich)), type: "practice" },
+  { name: "Übung 3.2", left: "Dumm", right: "Intelligent", items: shuffle(dumm.concat(intelligent)), type: "practice" },
+  { name: "Testblock 2", left: "Arme Menschen / Dumm", right: "Reiche Menschen / Intelligent", items: shuffle(arm.concat(dumm, reich, intelligent)), type: "test2" }
 ];
 
 document.getElementById('start-button').addEventListener('click', () => {
@@ -142,19 +143,23 @@ function showStimulus() {
     return;
   }
   document.getElementById('stimulus-container').innerHTML = allStimuli[currentStimulus];
+  startTime = Date.now();
 }
 
-document.getElementById('left-button').addEventListener('click', () => {
-  responses.push({stimulus: allStimuli[currentStimulus], response: "left"});
+function recordResponse(side) {
+  const rt = Date.now() - startTime;
+  responses.push({
+    stimulus: allStimuli[currentStimulus],
+    response: side,
+    rt: rt,
+    blockType: blocks[block].type
+  });
   currentStimulus++;
   showStimulus();
-});
+}
 
-document.getElementById('right-button').addEventListener('click', () => {
-  responses.push({stimulus: allStimuli[currentStimulus], response: "right"});
-  currentStimulus++;
-  showStimulus();
-});
+document.getElementById('left-button').addEventListener('click', () => recordResponse("left"));
+document.getElementById('right-button').addEventListener('click', () => recordResponse("right"));
 
 function shuffle(array) {
   for (let i = array.length - 1; i > 0; i--) {
@@ -165,14 +170,36 @@ function shuffle(array) {
 }
 
 function endTest() {
+  const rt_test1 = responses.filter(r => r.blockType === "test1").map(r => r.rt);
+  const rt_test2 = responses.filter(r => r.blockType === "test2").map(r => r.rt);
+
+  const mean = arr => arr.reduce((a,b) => a+b, 0) / arr.length;
+  const std = arr => {
+    const m = mean(arr);
+    return Math.sqrt(arr.reduce((a,b) => a+Math.pow(b-m,2), 0)/arr.length);
+  };
+
+  const mean1 = mean(rt_test1);
+  const mean2 = mean(rt_test2);
+  const pooledSD = std(rt_test1.concat(rt_test2)) || 1;
+
+  const d = (mean1 - mean2) / pooledSD;
+
+  let resultText = "Keine klare Assoziation festgestellt.";
+  if (Math.abs(d) > 0.65) {
+    resultText = d > 0 ? "Starke Assoziation: Reiche Menschen werden mit Intelligenz assoziiert." : "Starke Assoziation: Arme Menschen werden mit Intelligenz assoziiert.";
+  } else if (Math.abs(d) > 0.35) {
+    resultText = d > 0 ? "Leichte Assoziation: Reiche Menschen werden eher mit Intelligenz assoziiert." : "Leichte Assoziation: Arme Menschen werden eher mit Intelligenz assoziiert.";
+  }
+
   document.getElementById('instruction-container').style.display = "block";
   document.getElementById('stimulus-container').style.display = "none";
   document.getElementById('button-container').style.display = "none";
   document.getElementById('instruction-container').innerHTML = `
     <h2>Test abgeschlossen!</h2>
-    <p>Vielen Dank für Ihre Teilnahme.</p>
-    <p>Ihr Ergebnis zeigt, ob bei Ihnen eher eine Assoziation zwischen Armut und geringer Intelligenz oder Reichtum und hoher Intelligenz besteht.</p>
-    <p>Bitte denken Sie daran: Diese Ergebnisse spiegeln unbewusste Reaktionsmuster wider und keine bewussten Überzeugungen.</p>
+    <p>${resultText}</p>
+    <p><strong>D-Score:</strong> ${d.toFixed(3)}</p>
+    <p>Bitte beachten Sie: Diese Ergebnisse spiegeln automatische Assoziationen wider, nicht bewusst gewollte Einstellungen.</p>
   `;
 }
 </script>
