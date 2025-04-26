@@ -1,0 +1,181 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SES-IAT (Touch-Version final)</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 1em;
+      margin: 0;
+      background-color: #f5f5f5;
+    }
+    #stimulus-container {
+      margin-top: 2em;
+      font-size: 28px;
+      min-height: 80px;
+    }
+    #button-container {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 2em;
+    }
+    .choice-button {
+      width: 45%;
+      padding: 1em;
+      font-size: 18px;
+      background-color: #1976d2;
+      color: white;
+      border: none;
+      border-radius: 8px;
+    }
+    .choice-button:active {
+      background-color: #1565c0;
+    }
+    #instruction-container {
+      margin-top: 2em;
+      font-size: 20px;
+      padding: 1em;
+    }
+  </style>
+</head>
+<body>
+
+<div id="instruction-container">
+  <h2>Willkommen zum SES-IAT</h2>
+  <p>Dieser Test untersucht unbewusste Assoziationen zwischen sozioökonomischem Status (arm/reich) und kognitiven Eigenschaften (intelligent/dumm).</p>
+  <p>Sie sehen Begriffe und wählen per Tippen auf den linken oder rechten Button die passende Kategorie aus.</p>
+  <p>Bitte reagieren Sie schnell und intuitiv – es gibt keine richtigen oder falschen Antworten.</p>
+  <button class="choice-button" id="start-button">Test starten</button>
+</div>
+
+<div id="stimulus-container" style="display: none;">Klicke auf Start, um zu beginnen!</div>
+
+<div id="button-container" style="display: none;">
+  <button class="choice-button" id="left-button">Links</button>
+  <button class="choice-button" id="right-button">Rechts</button>
+</div>
+
+<script>
+const arm = ["Sozialhilfeempfänger", "Arbeitslose Person", "Obdachloser", "Alleinerziehende Mutter", "Person im Gemeindebau", "Geringverdiener", "AMS-Kunde"];
+const reich = ["Investor", "Manager", "Erbe", "Anzugträger", "Luxusurlauber", "Privatversichert", "Millionär"];
+const intelligent = ["Klug", "Erfinderisch", "Logisch", "Hochbegabt", "Analytisch", "Bildung", "Lösung"];
+const dumm = ["Ahnungslos", "Fehler", "Ungebildet", "Naiv", "Langsam im Denken", "Verwirrt", "Versagen"];
+
+let allStimuli = [];
+let currentStimulus = 0;
+let block = 0;
+let responses = [];
+
+const blocks = [
+  { name: "Übung 1", left: "Arme Menschen", right: "Reiche Menschen", items: shuffle(arm.concat(reich)) },
+  { name: "Übung 2", left: "Intelligent", right: "Dumm", items: shuffle(intelligent.concat(dumm)) },
+  { name: "Testblock 1", left: "Arme Menschen / Intelligent", right: "Reiche Menschen / Dumm", items: shuffle(arm.concat(intelligent, reich, dumm)) },
+  { name: "Hinweis", left: "", right: "", items: [] },
+  { name: "Übung 3.1", left: "Arme Menschen", right: "Reiche Menschen", items: shuffle(arm.concat(reich)) },
+  { name: "Übung 3.2", left: "Dumm", right: "Intelligent", items: shuffle(dumm.concat(intelligent)) },
+  { name: "Testblock 2", left: "Arme Menschen / Dumm", right: "Reiche Menschen / Intelligent", items: shuffle(arm.concat(dumm, reich, intelligent)) }
+];
+
+document.getElementById('start-button').addEventListener('click', () => {
+  document.getElementById('instruction-container').style.display = "none";
+  showInstruction();
+});
+
+function showInstruction() {
+  document.getElementById('stimulus-container').style.display = "none";
+  document.getElementById('button-container').style.display = "none";
+
+  if (block >= blocks.length) {
+    endTest();
+    return;
+  }
+
+  const blockInfo = blocks[block];
+  let instructionText = `
+    <h2>${blockInfo.name}</h2>
+    <p>Ordnen Sie die Begriffe den richtigen Kategorien zu:</p>
+    <p><strong>Links:</strong> ${blockInfo.left}</p>
+    <p><strong>Rechts:</strong> ${blockInfo.right}</p>
+    <button class="choice-button" id="continue-button">Weiter</button>
+  `;
+
+  if (blockInfo.name === "Hinweis") {
+    instructionText = `
+      <h2>Hinweis</h2>
+      <p>Die Seitenzuordnung der Kategorien wird nun geändert!</p>
+      <p>Bitte achten Sie besonders darauf, auf welcher Seite welche Kategorie steht.</p>
+      <button class="choice-button" id="continue-button">Weiter</button>
+    `;
+  }
+
+  document.getElementById('instruction-container').innerHTML = instructionText;
+  document.getElementById('instruction-container').style.display = "block";
+  document.getElementById('continue-button').addEventListener('click', startBlock);
+}
+
+function startBlock() {
+  document.getElementById('instruction-container').style.display = "none";
+
+  if (blocks[block].name === "Hinweis") {
+    block++;
+    showInstruction();
+    return;
+  }
+
+  document.getElementById('stimulus-container').style.display = "block";
+  document.getElementById('button-container').style.display = "flex";
+  currentStimulus = 0;
+  allStimuli = blocks[block].items;
+  document.getElementById('left-button').textContent = blocks[block].left;
+  document.getElementById('right-button').textContent = blocks[block].right;
+  showStimulus();
+}
+
+function showStimulus() {
+  if (currentStimulus >= allStimuli.length) {
+    block++;
+    showInstruction();
+    return;
+  }
+  document.getElementById('stimulus-container').innerHTML = allStimuli[currentStimulus];
+}
+
+document.getElementById('left-button').addEventListener('click', () => {
+  responses.push({stimulus: allStimuli[currentStimulus], response: "left"});
+  currentStimulus++;
+  showStimulus();
+});
+
+document.getElementById('right-button').addEventListener('click', () => {
+  responses.push({stimulus: allStimuli[currentStimulus], response: "right"});
+  currentStimulus++;
+  showStimulus();
+});
+
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+function endTest() {
+  document.getElementById('instruction-container').style.display = "block";
+  document.getElementById('stimulus-container').style.display = "none";
+  document.getElementById('button-container').style.display = "none";
+  document.getElementById('instruction-container').innerHTML = `
+    <h2>Test abgeschlossen!</h2>
+    <p>Vielen Dank für Ihre Teilnahme.</p>
+    <p>Ihr Ergebnis zeigt, ob bei Ihnen eher eine Assoziation zwischen Armut und geringer Intelligenz oder Reichtum und hoher Intelligenz besteht.</p>
+    <p>Bitte denken Sie daran: Diese Ergebnisse spiegeln unbewusste Reaktionsmuster wider und keine bewussten Überzeugungen.</p>
+  `;
+}
+</script>
+
+</body>
+</html>
